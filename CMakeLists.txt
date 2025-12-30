@@ -22,6 +22,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Add subprojects
 # -------------------------------------------------
 add_subdirectory(gst-myfilter)
+add_subdirectory(gst-woodscape_dataset_loader)
 
 # -------------------------------------------------
 # (Future) Add more subprojects here
