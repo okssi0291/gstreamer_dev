@@ -195,17 +195,17 @@ woodscape_run/fast:
 .PHONY : woodscape_run/fast
 
 #=============================================================================
-# Target rules for targets named gst-nuscenesrc
+# Target rules for targets named gstnuscenesrc
 
 # Build rule for target.
-gst-nuscenesrc: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 gst-nuscenesrc
-.PHONY : gst-nuscenesrc
+gstnuscenesrc: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 gstnuscenesrc
+.PHONY : gstnuscenesrc
 
 # fast build rule for target.
-gst-nuscenesrc/fast:
-	$(MAKE) $(MAKESILENT) -f gst-nuscenesrc/CMakeFiles/gst-nuscenesrc.dir/build.make gst-nuscenesrc/CMakeFiles/gst-nuscenesrc.dir/build
-.PHONY : gst-nuscenesrc/fast
+gstnuscenesrc/fast:
+	$(MAKE) $(MAKESILENT) -f gst-nuscenesrc/CMakeFiles/gstnuscenesrc.dir/build.make gst-nuscenesrc/CMakeFiles/gstnuscenesrc.dir/build
+.PHONY : gstnuscenesrc/fast
 
 #=============================================================================
 # Target rules for targets named nuscenes_run_pipeline
@@ -244,8 +244,8 @@ help:
 	@echo "... nuscenes_run"
 	@echo "... run"
 	@echo "... woodscape_run"
-	@echo "... gst-nuscenesrc"
 	@echo "... gstmyfilter"
+	@echo "... gstnuscenesrc"
 	@echo "... gstwoodscape_dataset_loader"
 	@echo "... nuscenes_run_pipeline"
 	@echo "... run_pipeline"
