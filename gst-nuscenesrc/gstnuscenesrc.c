@@ -57,7 +57,7 @@ static JsonArray* load_json_array_from_file(const gchar *path, GError **err) {
   }
   JsonArray *arr = json_node_get_array(root);
   // keep parser alive until we’re done copying data out; we copy what we need, so ok to unref
-  g_object_unref(parser);
+  // g_object_unref(parser);
   return arr;
 }
 
@@ -261,6 +261,7 @@ static gboolean gst_nuscenesrc_stop(GstBaseSrc *bsrc) {
 
 static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf) {
   GstNuSceneSrc *self = GST_NUSCENESRC(psrc);
+  static int count = 0;
 
   if (!self->frames || self->frames->len == 0) {
     return GST_FLOW_EOS;
@@ -268,8 +269,10 @@ static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf)
 
   if (self->frame_idx >= self->frames->len) {
     if (self->loop) {
+      /* restart frame index but keep `next_pts` monotonic so downstream
+       * elements don't see non-monotonic timestamps which can cause
+       * them to hold or drop frames. */
       self->frame_idx = 0;
-      self->next_pts = 0;
     } else {
       return GST_FLOW_EOS;
     }
@@ -282,6 +285,8 @@ static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf)
   gsize size = 0;
   GError *err = NULL;
 
+  printf("count : %d\n",count++);
+  g_print("%s\n",path ? path : "(null)");
   if (!g_file_get_contents(path, &data, &size, &err)) {
     GST_WARNING_OBJECT(self, "Failed to read %s: %s", path, err ? err->message : "unknown");
     if (err) g_error_free(err);
@@ -303,6 +308,7 @@ static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf)
 
   self->next_pts += self->duration;
 
+  // sleep(1);
   *outbuf = buf;
   return GST_FLOW_OK;
 }
