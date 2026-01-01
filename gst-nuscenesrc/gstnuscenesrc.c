@@ -97,7 +97,7 @@ static gboolean build_frame_list(GstNuSceneSrc *self, GError **err) {
     g_set_error(err, g_quark_from_string("nuscenesrc"), 3, "No scenes found");
     goto fail;
   }
-  if (self->scene_index < 0 || (guint)self->scene_index >= n_scenes) {
+  if (self->scene_index >= 0 && (guint)self->scene_index >= n_scenes) {
     g_set_error(err, g_quark_from_string("nuscenesrc"), 4,
                 "scene-index out of range: %d (0..%u)",
                 self->scene_index, n_scenes - 1);
@@ -148,32 +148,64 @@ static gboolean build_frame_list(GstNuSceneSrc *self, GError **err) {
     g_hash_table_insert(sd_fn_by_sample, g_strdup(sample_token), g_strdup(fn));
   }
 
-  // --- Pick scene and walk sample chain
-  JsonObject *scene_obj = json_array_get_object_element(scenes, self->scene_index);
-  if (!scene_obj || !json_object_has_member(scene_obj, "first_sample_token")) {
-    g_set_error(err, g_quark_from_string("nuscenesrc"), 5, "Scene missing first_sample_token");
-    goto fail_tables;
-  }
-
-  const gchar *first_sample_token = json_object_get_string_member(scene_obj, "first_sample_token");
-  if (!first_sample_token || !*first_sample_token) {
-    g_set_error(err, g_quark_from_string("nuscenesrc"), 6, "Invalid first_sample_token");
-    goto fail_tables;
-  }
-
+  // --- Pick scene(s) and walk sample chain(s)
   self->frames = g_ptr_array_new_with_free_func(g_free);
-  const gchar *cur = first_sample_token;
 
-  while (cur && *cur) {
-    gchar *rel_fn = g_hash_table_lookup(sd_fn_by_sample, cur);
-    if (rel_fn) {
-      gchar *full = g_build_filename(self->dataroot, rel_fn, NULL);
-      g_ptr_array_add(self->frames, full);
+  /* Keep track of seen relative filenames to avoid duplicates when
+   * aggregating frames from multiple scenes. */
+  GHashTable *seen_rel_fns = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
+  if (self->scene_index < 0) {
+    for (guint si = 0; si < n_scenes; si++) {
+      JsonObject *scene_obj = json_array_get_object_element(scenes, si);
+      if (!scene_obj || !json_object_has_member(scene_obj, "first_sample_token"))
+        continue;
+      const gchar *first_sample_token = json_object_get_string_member(scene_obj, "first_sample_token");
+      if (!first_sample_token || !*first_sample_token)
+        continue;
+
+      const gchar *cur = first_sample_token;
+      while (cur && *cur) {
+        gchar *rel_fn = g_hash_table_lookup(sd_fn_by_sample, cur);
+        if (rel_fn && !g_hash_table_contains(seen_rel_fns, rel_fn)) {
+          gchar *full = g_build_filename(self->dataroot, rel_fn, NULL);
+          g_ptr_array_add(self->frames, full);
+          g_hash_table_add(seen_rel_fns, g_strdup(rel_fn));
+        }
+        gchar *next = g_hash_table_lookup(sample_next, cur);
+        if (!next || !*next) break;
+        cur = next;
+      }
     }
-    gchar *next = g_hash_table_lookup(sample_next, cur);
-    if (!next || !*next) break;
-    cur = next;
+  } else {
+    JsonObject *scene_obj = json_array_get_object_element(scenes, self->scene_index);
+    if (!scene_obj || !json_object_has_member(scene_obj, "first_sample_token")) {
+      g_set_error(err, g_quark_from_string("nuscenesrc"), 5, "Scene missing first_sample_token");
+      g_hash_table_destroy(seen_rel_fns);
+      goto fail_tables;
+    }
+
+    const gchar *first_sample_token = json_object_get_string_member(scene_obj, "first_sample_token");
+    if (!first_sample_token || !*first_sample_token) {
+      g_set_error(err, g_quark_from_string("nuscenesrc"), 6, "Invalid first_sample_token");
+      g_hash_table_destroy(seen_rel_fns);
+      goto fail_tables;
+    }
+
+    const gchar *cur = first_sample_token;
+    while (cur && *cur) {
+      gchar *rel_fn = g_hash_table_lookup(sd_fn_by_sample, cur);
+      if (rel_fn) {
+        gchar *full = g_build_filename(self->dataroot, rel_fn, NULL);
+        g_ptr_array_add(self->frames, full);
+      }
+      gchar *next = g_hash_table_lookup(sample_next, cur);
+      if (!next || !*next) break;
+      cur = next;
+    }
   }
+
+  g_hash_table_destroy(seen_rel_fns);
 
   g_hash_table_destroy(sd_fn_by_sample);
   g_hash_table_destroy(sample_next);
@@ -308,7 +340,12 @@ static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf)
 
   self->next_pts += self->duration;
 
-  // sleep(1);
+  /* Rate-limit based on fps by sleeping for the frame duration */
+  if (self->duration > 0) {
+    GstClockTime sleep_ns = self->duration;
+    g_usleep(sleep_ns / 1000);  /* convert nanoseconds to microseconds */
+  }
+
   *outbuf = buf;
   return GST_FLOW_OK;
 }
@@ -424,8 +461,8 @@ static void gst_nuscenesrc_class_init(GstNuSceneSrcClass *klass) {
 
   g_object_class_install_property(gobject_class, PROP_SCENE_INDEX,
     g_param_spec_int("scene-index", "Scene index",
-                     "Which scene to play (0-based index in scene.json)",
-                     0, 1000000, 0,
+                     "Which scene to play (0-based index in scene.json). Set to -1 to play all scenes.",
+                     -1, 1000000, 0,
                      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_static_metadata(element_class,
