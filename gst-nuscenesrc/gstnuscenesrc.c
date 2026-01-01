@@ -138,9 +138,15 @@ static gboolean build_frame_list(GstNuSceneSrc *self, GError **err) {
       if (ch && self->cam && g_strcmp0(ch, self->cam) == 0)
         keep = TRUE;
     }
-    if (!keep && self->cam && g_strstr_len(fn, -1, self->cam)) {
-      // fallback (less strict): path contains CAM_BACK etc.
-      keep = TRUE;
+    
+    /* Fallback: match camera name as a path component (e.g., "/CAM_FRONT/")
+     * to avoid substring matches (e.g., CAM_FRONT matches CAM_FRONT_LEFT). */
+    if (!keep && self->cam) {
+      gchar *pattern = g_strdup_printf("/%s/", self->cam);
+      if (g_strstr_len(fn, -1, pattern)) {
+        keep = TRUE;
+      }
+      g_free(pattern);
     }
     if (!keep) continue;
 
@@ -222,6 +228,9 @@ static gboolean build_frame_list(GstNuSceneSrc *self, GError **err) {
     return FALSE;
   }
 
+  g_print("nuscenesrc: cam=%s, scene_index=%d, collected %u frames\n",
+          self->cam ? self->cam : "(null)", self->scene_index, self->frames->len);
+
   return TRUE;
 
 fail_tables:
@@ -293,7 +302,6 @@ static gboolean gst_nuscenesrc_stop(GstBaseSrc *bsrc) {
 
 static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf) {
   GstNuSceneSrc *self = GST_NUSCENESRC(psrc);
-  static int count = 0;
 
   if (!self->frames || self->frames->len == 0) {
     return GST_FLOW_EOS;
@@ -317,7 +325,6 @@ static GstFlowReturn gst_nuscenesrc_create(GstPushSrc *psrc, GstBuffer **outbuf)
   gsize size = 0;
   GError *err = NULL;
 
-  printf("count : %d\n",count++);
   g_print("%s\n",path ? path : "(null)");
   if (!g_file_get_contents(path, &data, &size, &err)) {
     GST_WARNING_OBJECT(self, "Failed to read %s: %s", path, err ? err->message : "unknown");
@@ -365,6 +372,7 @@ static void gst_nuscenesrc_set_property(GObject *object, guint prop_id,
       break;
     case PROP_CAM:
       g_free(self->cam);
+      g_printf("Setting CAM to %s\n",g_value_get_string(value));
       self->cam = g_value_dup_string(value);
       break;
     case PROP_FPS:

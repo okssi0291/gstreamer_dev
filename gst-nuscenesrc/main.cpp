@@ -11,13 +11,60 @@ int main(int argc, char *argv[]) {
 
   GError *err = nullptr;
 
-  const char *pipeline_desc =
-      "nuscenesrc "
-      "dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset "
-      "meta=v1.0-test cam=CAM_BACK fps=12 scene-index=0 loop=true "
-      "! jpegdec "
-      "! videoconvert "
-      "! autovideosink sync=false";
+  // const char *pipeline_desc =
+  //     "nuscenesrc "
+  //     "dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset "
+  //     "meta=v1.0-test cam=CAM_BACK fps=12 scene-index=-1 loop=true "
+  //     "! jpegdec "
+  //     "! videoconvert "
+  //     "! autovideosink sync=false";
+  
+  const char *pipeline_desc = "compositor name=comp background=black \
+    sink_0::xpos=0    sink_0::ypos=0   \
+    sink_1::xpos=640  sink_1::ypos=0   \
+    sink_2::xpos=1280 sink_2::ypos=0   \
+    sink_3::xpos=0    sink_3::ypos=360 \
+    sink_4::xpos=640  sink_4::ypos=360 \
+    sink_5::xpos=1280 sink_5::ypos=360 \
+  ! videoconvert ! autovideosink sync=false \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_FRONT fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_0 \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_FRONT_LEFT fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_1 \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_FRONT_RIGHT fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_2 \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_BACK fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_3 \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_BACK_LEFT fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_4 \
+  \
+  nuscenesrc dataroot=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset meta=v1.0-test cam=CAM_BACK_RIGHT fps=12 scene-index=-1 loop=true \
+  ! jpegdec ! videoconvert ! videoscale \
+  ! video/x-raw,width=640,height=360,pixel-aspect-ratio=1/1 \
+  ! queue ! comp.sink_5";
+
+  
+  // const char *pipeline_desc =
+  //   "gst-launch-1.0 -v "
+  //   "multifilesrc location=/home/okssi/workspace/dataset_sdb1/nuscenes/dataset/samples/CAM_FRONT/n015-2018-07-25-16-15-50+0800__CAM_FRONT__1532506690912460.jpg loop=true "
+  //   "! jpegdec "
+  //   "! videoconvert "
+  //   "! autovideosink sync=false";
 
   GstElement *pipeline = gst_parse_launch(pipeline_desc, &err);
   if (!pipeline) {
